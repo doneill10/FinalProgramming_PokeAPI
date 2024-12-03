@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pokémon Selector</title>
+    <style>
+        .container {
+            display: flex;
+        }
+        .team {
+            width: 70%;
+        }
+        .types {
+            width: 30%;
+            margin-left: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+        .slot {
+            display: inline-block;
+            margin: 0px;
+            padding: 20px;
+            text-align: center;
+            width: 150px;
+        }
+        .pokemon-name {
+            margin: 0; /* Removes margin for the Pokémon name */
+            text-align: center; /* Optional: Ensures text is centered */
+        }
+        .pokemon-types {
+            margin: 0; /* Removes margin for the typings */
+            text-align: center; /* Optional: Ensures text is centered */
+        }
+        .ability-section {
+        margin-top: 10px; /* Adds space above the ability dropdown */
+        margin-bottom: 10px; /* Adds space below the ability dropdown */
+        }
+        .slot img {
+            width: 100px;
+            height: auto;
+        }
+        .no-bullets .title {
+        text-align: center; /* Center the title */
+        font-weight: bold; /* Keep it bold */
+        }
+        .no-bullets {
+        list-style-type: none; /* Removes bullets */
+        padding: 0; /* Removes default padding */
+        margin: 0; /* Removes default margin */
+        text-align: left; /* Ensure individual list items align left */
+    }
+    </style>
+    <script>
+        function updateAbility(slotIndex) {
+            // Get the selected ability from the dropdown
+            const selectElement = document.getElementById(`ability_name_${slotIndex}`);
+            const selectedAbility = selectElement.value;
+
+            // Send the selected ability to the server
+            fetch("/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: new URLSearchParams({
+                    action: "select_ability",
+                    slot_index: slotIndex,
+                    ability_name: selectedAbility
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.error("Failed to update ability.");
+                }
+            })
+            .catch(error => console.error("Error:", error));
+        }
+
+        async function getSuggestion() {
+            const team = []; // Collect the team data from your frontend
+
+            // Example: Collecting team members
+            const slots = document.querySelectorAll(".slot");
+            slots.forEach(slot => {
+                const nameElement = slot.querySelector("p strong");
+                if (nameElement) {
+                    team.push(nameElement.textContent);
+                }
+            });
+
+            const response = await fetch("/suggest_pokemon", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ team }),
+            });
+
+            const data = await response.json();
+            const resultDiv = document.getElementById("suggestion-result");
+            if (data.suggestion) {
+                resultDiv.innerHTML = `<p>Suggested Pokémon: ${data.suggestion}</p>`;
+            } else {
+                resultDiv.innerHTML = `<p>Error: ${data.error}</p>`;
+            }
+        }
+
+        function replacePokemon(slotIndex) {
+            // Display a prompt or form to choose a new Pokémon
+            const newPokemon = prompt("Enter the name of the new Pokémon:");
+
+            if (newPokemon) {
+                // Send the replacement Pokémon to the server
+                fetch("/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    body: new URLSearchParams({
+                        action: "submit", // Reuse the submit action for replacement
+                        slot_index: slotIndex,
+                        pokemon_name: newPokemon
+                    })
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Reload the page to reflect the change
+                        location.reload();
+                    } else {
+                        console.error("Failed to replace Pokémon.");
+                    }
+                })
+                .catch(error => console.error("Error:", error));
+            }
+        }
+
+let analysisDone = false; // Global flag to ensure the analysis runs only once
+
+async function analyzeTeam() {
+    const team = [];
+    const slots = document.querySelectorAll(".slot");
+
+    // Collect the names of all chosen Pokémon in the team
+    slots.forEach(slot => {
+        const nameElement = slot.querySelector("p strong");
+        if (nameElement) {
+            team.push({ name: nameElement.textContent });
+        }
+    });
+
+    // Send the team data to the backend for analysis
+    const response = await fetch("/analyze_team", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ team }),
+    });
+
+    // Handle the response from the backend
+    const data = await response.json();
+    if (data.weaknesses) {
+        const weaknessList = document.getElementById("weaknesses-list");
+        weaknessList.innerHTML = data.weaknesses
+            .map(type => `<li>${type}</li>`)
+            .join("");
+    } else {
+        console.error(data.error || "An error occurred.");
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    function analyzeTeamIfComplete() {
+        if (analysisDone) return; // Exit if analysis has already been performed
+
+        const slots = document.querySelectorAll(".slot");
+        const filledSlots = Array.from(slots).filter(slot => slot.querySelector("p strong"));
+        if (filledSlots.length === 6) {
+            analysisDone = true; // Set the flag to prevent future runs
+            analyzeTeam(); // Run the analysis
+        }
+    }
+
+    // Add event listeners to call analyzeTeamIfComplete when the page loads or changes
+    const slots = document.querySelectorAll(".slot img");
+    slots.forEach(img => img.addEventListener("load", analyzeTeamIfComplete));
+});
+    </script>
+</head>
+
+<body>
+    <h1>Pokémon Selector</h1>
+    <div class="container">
+        <!-- Pokémon Team Section -->
+        <div class="team">
+            <div>
+                {% for i in range(6) %}
+                <div class="slot">
+                    {% if slots[i] %}
+                    <!-- Show Pokémon name, types, and image -->
+                    <img src="{{ slots[i].image_url }}" alt="{{ slots[i].name }} image" onclick="replacePokemon({{ i }})" style="cursor: pointer;">
+                    <p class="pokemon-name"><strong>{{ slots[i].name }}</strong></p>
+                    <p class="pokemon-types">{{ slots[i].types | join(", ") }}</p> <!-- Display types as a comma-separated list -->
+
+                    <!-- Ability Selection -->
+                    {% if slots[i].abilities %}
+                    <div class="ability-section">
+                        <label for="ability_name"><strong>Select Ability:</strong></label>
+                        <select name="ability_name" id="ability_name_{{ i }}" onchange="updateAbility({{ i }})">
+                            {% for ability in slots[i].abilities %}
+                            <option value="{{ ability.name }}" {% if slots[i].selected_ability == ability.name %}selected{% endif %}>
+                                {{ ability.name }}{% if ability.is_hidden %} (Hidden){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <!-- Display Base Stats -->
+                    {% if slots[i].base_stats %}
+                    <ul class="no-bullets">
+                        <li class="title">Base Stats:</li>
+                        {% for stat in slots[i].base_stats %}
+                        <li>{{ stat.stat }}: {{ stat.value }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% else %}
+                    <!-- Show button to add Pokémon -->
+                    <form action="/" method="post">
+                        <input type="hidden" name="slot_index" value="{{ i }}">
+                        <button type="submit" name="action" value="choose">Choose Pokémon</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pokémon input form (only appears if a slot is selected) -->
+            {% if selected_slot is not none %}
+            <form action="/" method="post" style="margin-top: 20px;">
+                <label for="pokemon_name">Enter Pokémon Name for Slot {{ selected_slot + 1 }}:</label>
+                <input type="text" id="pokemon_name" name="pokemon_name" required>
+                <input type="hidden" name="slot_index" value="{{ selected_slot }}">
+                <button type="submit" name="action" value="submit">Submit</button>
+            </form>
+            {% endif %}
+
+            <!-- Clear Fields button -->
+            <form action="/" method="post" style="margin-top: 20px;">
+                <button type="submit" name="action" value="clear">Clear Fields</button>
+            </form>
+        </div>
+
+        <!-- Collective Typing Section -->
+        <div class="types">
+            <h3>Team Typing</h3>
+            {% if unique_types %}
+                <ul>
+                    {% for type in unique_types %}
+                    <li><strong>{{ type }}</strong></li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No Pokémon selected.</p>
+            {% endif %}
+            <div class="weaknesses">
+                <h3>Top Weaknesses</h3>
+                <ul id="weaknesses-list">
+                    <!-- JavaScript will populate this -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+<!-- Add a button to get a suggestion -->
+<form id="suggestion-form" method="post" onsubmit="getSuggestion(); return false;">
+    <button type="submit">Get Suggestion</button>
+</form>
+
+<!-- Display the suggestion -->
+<div id="suggestion-result"></div>
+
+
+</body>
+</html>
