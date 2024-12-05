@@ -3,8 +3,7 @@ from collections import Counter
 import requests
 import openai
 
-# Set your OpenAI API key
-openai.api_key = None
+# This is where I put the key usually but Github doesn't like secret >:(
 
 app = Flask(__name__)
 
