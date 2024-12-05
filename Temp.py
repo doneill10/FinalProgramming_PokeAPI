@@ -4,7 +4,7 @@ import requests
 import openai
 
 # Set your OpenAI API key
-openai.api_key = "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"
+openai.api_key = "NUH UH You ain't getting this"
 
 app = Flask(__name__)
 
