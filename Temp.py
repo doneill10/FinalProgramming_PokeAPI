@@ -4,7 +4,7 @@ import requests
 import openai
 
 # Set your OpenAI API key
-openai.api_key = "NUH UH You ain't getting this"
+openai.api_key = None
 
 app = Flask(__name__)
 
